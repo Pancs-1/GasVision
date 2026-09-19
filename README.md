@@ -43,7 +43,6 @@ Before compiling, install the following libraries via the Arduino Library Manage
 
 ### Flashing the Code
 1. Clone or download this repository.
-2. Ensure your `.ino` source file sits in a directory exactly titled `code/GasVision/` or simply keep it within its unified project module folder.
-3. Open `GasVision.ino` in the Arduino IDE.
-4. Connect your Arduino board via USB and select the corresponding **Board** and **Port** under the `Tools` menu.
-5. Click **Verify** (the checkmark icon) to compile, followed by **Upload** (the arrow icon) 🚀.
+2. Open `GasVision.ino` in the Arduino IDE.
+3. Connect your Arduino board via USB and select the corresponding **Board** and **Port** under the `Tools` menu.
+4. Click **Verify** (the checkmark icon) to compile, followed by **Upload** (the arrow icon) 🚀.
