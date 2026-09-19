@@ -27,21 +27,6 @@
 
 ---
 
-## 📁 Repository Structure
-```text
-GasVision/
-│
-├── code/
-│   └── GasVision.ino          <-- Main Arduino microcontroller application
-│
-├── wiring/
-│   └── (Place any schematic files or Tinkercad screenshots here)
-│
-└── README.md                  <-- Project documentation (This file)
-```
-
----
-
 ## 🚀 Getting Started & Installation
 
 ### Prerequisites
@@ -49,9 +34,12 @@ To deploy this code to your Arduino hardware, ensure you have downloaded and con
 
 ### Required Libraries
 Before compiling, install the following libraries via the Arduino Library Manager (**Sketch** > **Include Library** > **Manage Libraries...**):
-1. **LiquidCrystal_I2C** (by Frank de Brabander) — For the LCD display functionality.
-2. **OneWire** (by Paul Stoffregen) — To handle communication with the DS18B20 sensor.
-3. **DallasTemperature** (by Miles Burton) — For simplified temperature parsing.
+1. `<Wire.h>` (Built-in) — Handles the I2C communications layout.
+2. `<LiquidCrystal_I2C.h>` — Drives your character LCD interface over I2C.
+3. `<OneWire.h>` — Manages the physical one-wire bus communication protocol.
+4. `<DallasTemperature.h>` — Translates data sent from the DS18B20 temperature probe.
+5. `<Servo.h>` (Built-in) — Provides smooth positional hardware sweeps for safety shutoff.
+
 
 ### Flashing the Code
 1. Clone or download this repository.
