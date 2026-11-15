@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LPG Scanner 3D</title>
+<style>
+:root{--bg:#eef1f3;--fg:#16212b;--muted:#5b6b78;--card:#fff;--bd:#cfd8de;--acc:#0b6e99;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10171d;--fg:#e4ebf0;--muted:#8fa1ae;--card:#18222a;--bd:#2c3b46;--acc:#4fc3f0}}
+:root[data-theme="dark"]{--bg:#10171d;--fg:#e4ebf0;--muted:#8fa1ae;--card:#18222a;--bd:#2c3b46;--acc:#4fc3f0}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{padding:16px 18px 2px;max-width:1280px;margin:0 auto}
+h1{margin:0;font-size:22px;letter-spacing:-.01em}
+header p{margin:4px 0 0;color:var(--muted)}
+main{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px;padding:12px 18px 24px;max-width:1280px;margin:0 auto}
+@media(max-width:900px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px}
+.stage{position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--bd);background:#0f171d}
+canvas{display:block;width:100%;height:min(72vh,620px);min-height:360px;touch-action:none;cursor:grab}
+#lbl{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.lb{position:absolute;left:0;top:0;font-size:11px;background:rgba(10,18,24,.78);color:#dbe9f1;padding:2px 6px;border-radius:5px;white-space:nowrap;display:none}
+.hint{position:absolute;left:10px;bottom:8px;font-size:12px;color:#9db1be;pointer-events:none}
+.legend{font-size:12.5px;color:var(--muted);margin:8px 2px 0}
+#badge{border-radius:8px;padding:10px 12px;font-weight:700;font-size:17px;margin-bottom:10px;color:#fff;background:#2f9e5b}
+.row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.m{border:1px solid var(--bd);border-radius:8px;padding:6px 8px}
+.m b{display:block;font-size:19px;font-variant-numeric:tabular-nums}
+.m span{font-size:12px;color:var(--muted)}
+.ctl{display:grid;grid-template-columns:110px 1fr 48px;gap:8px;align-items:center;margin:6px 0;font-size:13px}
+.ctl output{text-align:right;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chk{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:13px}
+button,select{font:inherit;border:1px solid var(--bd);background:var(--card);color:var(--fg);border-radius:8px;padding:8px 12px;cursor:pointer}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+button.on{background:#d9822b;color:#fff;border-color:#d9822b}
+button.red{background:#c62f2a;color:#fff;border-color:#c62f2a}
+h2{font-size:14px;margin:0 0 6px}
+#mon{background:#0c1116;color:#7ee0a1;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;height:200px;overflow:auto;border-radius:8px;padding:8px;margin:0;white-space:pre-wrap;word-break:break-word}
+</style>
+</head>
+<body>
+<header>
+<h1>LPG scanner in 3D</h1>
+<p>Everything sits inside the sealed glass box. Drag to orbit, scroll or pinch to zoom.</p>
+</header>
+<main>
+<section>
+<div class="stage"><canvas id="cv"></canvas><div id="lbl"></div><div class="hint">Drag to orbit, scroll or pinch to zoom</div></div>
+<p class="legend">Wires: red 5V, black GND, yellow pot wiper to A0, green MQ-6 to A1, white DS18B20 data to D2, blue button to D7, purple relay to D8, orange servo to D9.</p>
+</section>
+<section>
+<div class="card" style="margin-bottom:14px">
+<div id="badge">Low Danger Threat</div>
+<div class="row">
+<div class="m"><span>Servo angle</span><b id="rA">0&deg;</b></div>
+<div class="m"><span>Temperature</span><b id="rT">--</b></div>
+<div class="m"><span>Cylinder</span><b id="rC">0%</b></div>
+<div class="m"><span>MQ-6 raw</span><b id="rG">0</b></div>
+<div class="m"><span>Gas vs pot</span><b id="rP">0%</b></div>
+<div class="m"><span>Fan</span><b id="rF">OFF</b></div>
+</div>
+<div class="ctl"><label for="pot">Potentiometer</label><input id="pot" type="range" min="0" max="1023" value="600"><output id="potO">600</output></div>
+<div class="ctl"><label for="lvl">Liquid level</label><input id="lvl" type="range" min="10" max="90" value="55"><output id="lvlO">55%</output></div>
+<div class="ctl"><label for="spd">Speed</label><select id="spd"><option value="1">1x (real time)</option><option value="5">5x</option><option value="15" selected>15x</option><option value="30">30x</option></select><span></span></div>
+<div class="btns"><button id="leak" aria-pressed="false">Open leak valve</button><button id="rst" class="red">Reset button</button><button id="pause">Pause</button><button id="rv">Reset view</button></div>
+<div class="chk"><label><input type="checkbox" id="cL" checked> Labels</label><label><input type="checkbox" id="cW" checked> Wires</label><label><input type="checkbox" id="cX" checked> Translucent can</label></div>
+</div>
+<div class="card"><h2>Serial monitor (9600 baud)</h2><pre id="mon"></pre></div>
+</section>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+if(!window.THREE){document.querySelector(".stage").textContent="3D engine failed to load.";return}
+var T=THREE,$=function(i){return document.getElementById(i)};
+var cv=$("cv"),R=new T.WebGLRenderer({canvas:cv,antialias:true});
+R.setPixelRatio(Math.min(devicePixelRatio,2));R.outputEncoding=T.sRGBEncoding;
+var sc=new T.Scene();sc.background=new T.Color(0x0f171d);
+var cam=new T.PerspectiveCamera(45,1,.5,600);
+sc.add(new T.HemisphereLight(0xdfeeff,0x1a232b,.95));
+var dl=new T.DirectionalLight(0xffffff,.9);dl.position.set(30,60,45);sc.add(dl);
+var pl=new T.PointLight(0xffd9a0,.5,140);pl.position.set(-20,32,-10);sc.add(pl);
+function V(x,y,z){return new T.Vector3(x,y,z)}
+function M(c,o){return new T.MeshStandardMaterial(Object.assign({color:c,roughness:.5,metalness:.1},o||{}))}
+function G(x,y,z,p){var g=new T.Group();g.position.set(x,y,z);(p||sc).add(g);return g}
+function B(w,h,d,m,x,y,z,p){var o=new T.Mesh(new T.BoxGeometry(w,h,d),m);o.position.set(x,y,z);(p||sc).add(o);return o}
+function C(rt,rb,h,m,x,y,z,p,ax){var o=new T.Mesh(new T.CylinderGeometry(rt,rb,h,32),m);o.position.set(x,y,z);if(ax==="z")o.rotation.x=Math.PI/2;if(ax==="x")o.rotation.z=Math.PI/2;(p||sc).add(o);return o}
+function P(g,x,y,z){return g.localToWorld(V(x,y,z))}
+function tex(c){var t=new T.CanvasTexture(c);t.encoding=T.sRGBEncoding;t.anisotropy=4;return t}
+function cnv(w,h){var c=document.createElement("canvas");c.width=w;c.height=h;return c}
+function rr(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()}
+var alu=M(0xb9c3ca,{metalness:.45,roughness:.4}),blk=M(0x0c0c0c,{roughness:.25,metalness:.5}),dark=M(0x14181b),silver=M(0xcfd5d9,{metalness:.7,roughness:.3});
+
+/* bench + base */
+var fl=new T.Mesh(new T.PlaneGeometry(400,400),M(0x1b2830));fl.rotation.x=-Math.PI/2;fl.position.y=-1.05;sc.add(fl);
+var gh=new T.GridHelper(200,40,0x2c3d49,0x22313b);gh.position.y=-1.04;sc.add(gh);
+B(47,1,31,M(0x3b4a55,{roughness:.7}),0,-.5,0);
+/* glass box */
+var glass=new T.Mesh(new T.BoxGeometry(44,34,28),M(0x9bd8f0,{transparent:true,opacity:.09,roughness:.05,metalness:0,side:T.DoubleSide,depthWrite:false}));glass.position.y=17;sc.add(glass);
+var edgeM=new T.LineBasicMaterial({color:0x7fd0ee});
+var ed=new T.LineSegments(new T.EdgesGeometry(glass.geometry),edgeM);ed.position.y=17;sc.add(ed);
+[[-22,-14],[22,-14],[-22,14],[22,14]].forEach(function(c){B(.9,34,.9,alu,c[0],17,c[1])});
+
+/* blue LPG cylinder, translucent */
+var CX=-8,CZ=2,canG=G(CX,0,CZ);
+var bodyMat=M(0x1456c8,{roughness:.3,metalness:.2,transparent:true,opacity:.4,depthWrite:false,side:T.DoubleSide});
+var solidM=M(0x1456c8,{roughness:.4,metalness:.35,side:T.DoubleSide}),brass=M(0xc9a24a,{metalness:.8,roughness:.3});
+var body=new T.Mesh(new T.CylinderGeometry(3.3,3.3,13.6,64,1,false),bodyMat);body.position.y=7.7;body.renderOrder=2;canG.add(body);
+var dome=new T.Mesh(new T.SphereGeometry(3.3,48,16,0,Math.PI*2,0,Math.PI/2),bodyMat);dome.position.y=14.5;dome.scale.y=.75;dome.renderOrder=2;canG.add(dome);
+canG.add(new T.Mesh(new T.CylinderGeometry(2.9,3.1,.9,40,1,true),solidM)).position.y=.45;
+var gd=new T.Mesh(new T.CylinderGeometry(2.4,2.6,2,40,1,true,.7,Math.PI*2-1.4),solidM);gd.position.y=17.9;canG.add(gd);
+var rg2=new T.Mesh(new T.TorusGeometry(2.4,.22,8,40),solidM);rg2.rotation.x=Math.PI/2;rg2.position.y=18.9;canG.add(rg2);
+C(.55,.65,1.4,brass,0,18,0,canG);C(.35,.35,.5,brass,0,18.95,0,canG);C(.9,.9,.12,M(0x222222),0,19.3,0,canG);
+var liq=C(3.05,3.05,1,M(0x6fd0ff,{transparent:true,opacity:.75,emissive:0x1b6fa8,emissiveIntensity:.5,depthWrite:false}),0,0,0,canG);liq.renderOrder=1;
+var plume=new T.Mesh(new T.ConeGeometry(1.5,4.5,16,1,true),M(0xffa81f,{transparent:true,opacity:.45,side:T.DoubleSide,depthWrite:false}));plume.position.set(CX,22,CZ);plume.visible=false;sc.add(plume);
+
+/* belt track, carriage, DS18B20 */
+var RX=-2,ZB=2,Y0=1.6,Y1=19,L=Y1-Y0;
+B(2.2,19.5,.5,alu,RX,10.3,ZB-.7);B(2.6,.5,1.2,alu,RX,.35,ZB-.3);B(2.6,.5,1.2,alu,RX,20.2,ZB-.3);
+function pulley(y){var g=G(RX,y,ZB);C(.8,.8,.6,M(0x8a959d,{metalness:.5}),0,0,0,g,"z");C(1,1,.1,alu,0,0,.33,g,"z");C(1,1,.1,alu,0,0,-.33,g,"z");B(.25,.25,.7,M(0xe94b3c),.55,0,0,g);return g}
+var pT=pulley(Y1),pB=pulley(Y0);
+function beltTex(){var c=cnv(16,32),g=c.getContext("2d");g.fillStyle="#1b1f22";g.fillRect(0,0,16,32);g.fillStyle="#58646c";g.fillRect(0,0,16,10);var t=new T.CanvasTexture(c);t.wrapS=t.wrapT=T.RepeatWrapping;t.repeat.set(1,17);return t}
+var t1=beltTex(),t2=beltTex();
+B(.12,L,.8,M(0xffffff,{map:t1,roughness:.8}),RX+.8,(Y0+Y1)/2,ZB);B(.12,L,.8,M(0xffffff,{map:t2,roughness:.8}),RX-.8,(Y0+Y1)/2,ZB);
+var car=G(RX,Y0,ZB);B(2,1.6,1.4,M(0x2a3138),0,0,.9,car);B(1.5,.3,.3,alu,-1.65,0,1.1,car);B(.5,1,.45,M(0x070707,{roughness:.3}),-2.65,0,1.1,car);B(.52,.08,.47,M(0xe94b3c),-2.65,.3,1.1,car);
+function sensorY(a){return 1.5+a/180*15.5}
+
+/* servo + drive belt */
+var SX=3.4,SY=2.6,sM=M(0x1f5fa8);
+B(2.25,1.22,2.27,sM,SX-.9,SY,ZB-.5-1.135);B(3.3,.9,.2,sM,SX-.9,SY,ZB-1.1);C(.3,.3,.5,M(0xffffff),SX,SY,ZB-.25,null,"z");
+var dg=G(SX,SY,ZB);C(2,2,.3,M(0xe8ecef),0,0,.05,dg,"z");B(.3,1.6,.12,M(0xe94b3c),1.3,0,.25,dg);
+var bm=M(0x1b1f22,{roughness:.8});
+function strip(a,b){var dx=b.x-a.x,dy=b.y-a.y,o=B(Math.hypot(dx,dy),.12,.5,bm,(a.x+b.x)/2,(a.y+b.y)/2,ZB);o.rotation.z=Math.atan2(dy,dx)}
+strip({x:SX,y:SY+2},{x:RX,y:Y0+.8});strip({x:SX,y:SY-2},{x:RX,y:Y0-.8});
+
+/* exhaust fan in the right wall */
+var fg=G(20.75,22,-3);fg.rotation.y=Math.PI/2;
+var sh=new T.Shape();sh.moveTo(-4,-4);sh.lineTo(4,-4);sh.lineTo(4,4);sh.lineTo(-4,4);sh.lineTo(-4,-4);
+var hole=new T.Path();hole.absarc(0,0,3.6,0,Math.PI*2,true);sh.holes.push(hole);
+var fgeo=new T.ExtrudeGeometry(sh,{depth:2.5,bevelEnabled:false});fgeo.translate(0,0,-1.25);fg.add(new T.Mesh(fgeo,M(0x1c1f22)));
+var bl=G(0,0,0,fg);C(1.2,1.2,1,M(0x111),0,0,0,bl,"z");
+for(var i=0;i<7;i++){var pv=G(0,0,0,bl);pv.rotation.z=i*2*Math.PI/7;B(2.4,.9,.08,M(0x2d8fc4),2.2,0,0,pv).rotation.x=.55}
+
+/* Arduino Uno */
+var ag=G(-14,.8,-9);B(6.86,.16,5.33,M(0x0b7f8c),0,0,0,ag);
+B(1.6,1.1,1.2,silver,-2.9,.62,-1.1,ag);B(1.4,1.2,1,M(0x111),-3,.65,1.7,ag);B(3.4,.35,.85,M(0x111),.7,.25,.2,ag);B(.5,.25,.2,silver,-1.3,.2,.6,ag);C(.2,.2,.3,M(0xd33),-2,.2,-1.9,ag);
+B(.25,.12,.15,M(0x20ff70,{emissive:0x20ff70}),2,.14,1,ag);
+B(2.54,.8,.25,dark,-.207,.48,-2.35,ag);B(2.03,.8,.25,dark,2.33,.48,-2.35,ag);B(2.03,.8,.25,dark,-.011,.48,2.35,ag);B(1.52,.8,.25,dark,2.015,.48,2.35,ag);
+
+/* breadboard with pot, button, 4.7k resistor */
+function bbTex(){var c=cnv(768,256),g=c.getContext("2d");g.fillStyle="#efece4";g.fillRect(0,0,768,256);
+[[19,"#d33"],[237,"#d33"],[33,"#2f6fe0"],[223,"#2f6fe0"]].forEach(function(r){g.fillStyle=r[1];g.fillRect(14,r[0]-1.5,740,3)});
+g.fillStyle="#9a968c";for(var y=64;y<=192;y+=16){if(y>=112&&y<=144)continue;for(var x=24;x<750;x+=16){g.fillRect(x,y,6,6)}}
+g.fillStyle="#cfcabd";g.fillRect(8,122,752,12);return tex(c)}
+var bb=G(-1.25,.5,-9.5),sd=M(0xe9e6df,{roughness:.7});
+bb.add(new T.Mesh(new T.BoxGeometry(16.5,.9,5.5),[sd,sd,M(0xffffff,{map:bbTex(),roughness:.7}),sd,sd,sd]));
+B(1,.7,1,M(0x1a5fb4),-4,.8,-.3,bb);C(.35,.35,.3,silver,-4,1.3,-.3,bb);B(.5,.05,.08,dark,-4,1.46,-.3,bb);
+B(.62,.35,.62,M(0x111),-.5,.62,-.2,bb);C(.22,.22,.25,M(0xcccccc),-.5,.9,-.2,bb);
+C(.14,.14,.9,M(0xd9c28c),3,.65,.2,bb,"x");
+[[2.72,0xe3c400],[2.86,0x7a2fb5],[3,0xcc2222],[3.2,0xc9a227]].forEach(function(b){C(.155,.155,.06,M(b[1]),b[0],.65,.2,bb,"x")});
+
+/* MQ-6 module */
+var mg=G(-17,.4,5);B(3.2,.15,2.2,M(0x1d5fa8),0,0,0,mg);C(.85,.85,.9,M(0xa3acb2,{metalness:.8}),-.5,.5,0,mg);C(.7,.7,.02,M(0x333333),-.5,.96,0,mg);B(.5,.3,.5,M(0x2a6fd0),.7,.2,.6,mg);B(.3,.3,2,dark,1.5,.2,0,mg);
+
+/* relay module + 12V supply */
+var rg=G(11,.4,-8);B(5,.15,3.3,M(0x1d5fa8),0,0,0,rg);B(1.9,1.5,1.5,M(0x2c6fc4),-.5,.8,.3,rg);
+var rled=B(.25,.12,.2,M(0xff2a2a,{emissive:0xff2a2a,emissiveIntensity:0}),1.7,.14,-1.1,rg);
+[-1.4,0,1.4].forEach(function(x){B(1.1,.9,.9,M(0x2a6fc4),x,.5,1.3,rg)});B(1,.3,.25,dark,0,.35,-1.5,rg);
+var pg2=G(17,0,-7);B(5.5,2.8,3,M(0x4a5560),0,1.5,0,pg2);C(.4,.4,.5,M(0xdd3333),-1,3.15,0,pg2);C(.4,.4,.5,M(0x222222),1,3.15,0,pg2);
+
+/* wiring */
+sc.updateMatrixWorld(true);
+var wg=new T.Group();sc.add(wg);
+var RED=0xd62d2d,BLK=0x1a1a1a,YEL=0xf2c200,GRN=0x2fbf5f,ORG=0xff8a1f,BLU=0x2f7bff,WHT=0xf2f2f2,PUR=0xa04bd6,BRN=0x6b4226;
+function W(a,b,col,lift,off){var m=a.clone().add(b).multiplyScalar(.5);m.y+=lift;m.z+=off||0;
+var c=new T.CatmullRomCurve3([a,a.clone().add(V(0,.7,0)),m,b.clone().add(V(0,.7,0)),b]);wg.add(new T.Mesh(new T.TubeGeometry(c,24,.075,6),M(col,{roughness:.4})))}
+function dp(n){return P(ag,n>=8?-1.35+.254*(17-n):1.44+.254*(7-n),.95,-2.35)}
+function ap(n){return P(ag,1.38+.254*n,.95,2.35)}
+function rp(x){return P(bb,x,.5,2.35)}function rm(x){return P(bb,x,.5,2.05)}
+function bp(x,y,z){return P(bb,x,y,z)}
+var p5=P(ag,.116,.95,2.35),pgd=P(ag,.37,.95,2.35);
+W(p5,rp(-8),RED,2,0);W(pgd,rm(-7.6),BLK,2.5,0);
+W(P(mg,1.55,.45,-.57),rp(-6.5),RED,3,0);W(P(mg,1.55,.45,-.19),rm(-6.1),BLK,3.4,.4);W(P(mg,1.55,.45,.57),ap(1),GRN,4,0);
+W(bp(-4.5,.55,.75),rp(-4.6),RED,1.2,0);W(bp(-3.5,.55,.75),rm(-3.4),BLK,1.2,0);W(bp(-4,.55,.75),ap(0),YEL,3,0);
+W(bp(-.8,.55,.6),dp(7),BLU,5,-1);W(bp(-.2,.55,.6),rm(-.1),BLK,1.2,0);
+W(bp(2.5,.6,.2),rp(2.4),RED,1.2,0);W(bp(3.5,.6,.2),dp(2),WHT,5.5,.5);
+var sv=[0,1,2].map(function(i){return V(1.4,SY+(i-1)*.18,ZB-.5-1.135)});
+W(sv[0],rp(.8),RED,2,0);W(sv[1],rm(1.2),BRN,2.4,.3);W(sv[2],dp(9),ORG,5.5,-1.5);
+W(P(rg,-.5,.5,-1.5),rp(7.2),RED,3,0);W(P(rg,0,.5,-1.5),rm(7.6),BLK,3,.4);W(P(rg,.5,.5,-1.5),dp(8),PUR,6,-2);
+var fl1=fg.localToWorld(V(-3.2,-3.9,-.7)),fl2=fg.localToWorld(V(-3.2,-3.9,-.3));
+W(P(pg2,-1,3.45,0),P(rg,0,1,1.3),RED,2,0);W(P(rg,1.4,1,1.3),fl1,RED,6,0);W(fl2,P(pg2,1,3.45,0),BLK,5,.5);
+/* DS18B20 cable follows the carriage */
+var cab=[0,1,2].map(function(){var m=new T.Mesh(new T.BufferGeometry(),M(0x111111));wg.add(m);return m});
+var cabCol=[RED,YEL,BLK],cabEnd=[rp(4.4),bp(3.5,.6,.35),rm(4.8)];
+function setCable(y){for(var i=0;i<3;i++){var s=V(RX+1,y,ZB+.9+i*.14),e=cabEnd[i];
+var c=new T.CatmullRomCurve3([s,V(s.x+1.5,s.y-1.5,s.z-1.5),V((s.x+e.x)/2,Math.max(1.2,(s.y+e.y)/2-3),(s.z+e.z)/2),e.clone().add(V(0,1,1.5)),e]);
+cab[i].geometry.dispose();cab[i].geometry=new T.TubeGeometry(c,24,.075,6);cab[i].material.color.setHex(cabCol[i])}}
+
+/* gas particles */
+var N=600,pp=new Float32Array(N*3);for(var i=0;i<N;i++){pp[i*3]=-21+Math.random()*42;pp[i*3+1]=1+Math.random()*32;pp[i*3+2]=-13+Math.random()*26}
+var pgeo=new T.BufferGeometry();pgeo.setAttribute("position",new T.BufferAttribute(pp,3));pgeo.setDrawRange(0,0);
+var dc=cnv(32,32),dg2=dc.getContext("2d"),gr=dg2.createRadialGradient(16,16,0,16,16,16);gr.addColorStop(0,"rgba(255,255,255,1)");gr.addColorStop(1,"rgba(255,255,255,0)");dg2.fillStyle=gr;dg2.fillRect(0,0,32,32);
+var pm=new T.PointsMaterial({size:1.6,color:0xffa81f,transparent:true,opacity:.5,depthWrite:false,map:new T.CanvasTexture(dc)});
+var pts=new T.Points(pgeo,pm);pts.frustumCulled=false;sc.add(pts);
+
+/* labels */
+var lbl=$("lbl"),LB=[];
+function addL(t,fn){var e=document.createElement("span");e.className="lb";e.textContent=t;lbl.appendChild(e);LB.push([e,fn])}
+addL("LPG cylinder",function(){return V(CX,21,CZ)});addL("DS18B20 on track",function(){return V(RX+1,car.position.y+1.6,ZB+1.5)});addL("Servo",function(){return V(SX-1,4.6,.4)});
+addL("Pulley belt",function(){return V(RX,20.6,ZB)});addL("MQ-6",function(){return V(-17.5,2.6,5)});addL("Arduino Uno",function(){return V(-14,2.6,-9)});
+addL("Potentiometer",function(){return V(-5.25,2.4,-9.8)});addL("Push button",function(){return V(-1.75,2.2,-9.7)});addL("4.7k resistor",function(){return V(1.75,1.8,-9.3)});
+addL("Relay",function(){return V(11,2.6,-8)});addL("12V supply",function(){return V(17,4.4,-7)});addL("Exhaust fan",function(){return V(20.5,27.4,-3)});
+
+/* orbit camera */
+var th=.7,ph=1.05,rad=82,tg=V(0,12,-1),ptr=new Map();
+function clampR(){rad=Math.min(150,Math.max(25,rad))}
+function camU(){cam.position.set(tg.x+rad*Math.sin(ph)*Math.sin(th),tg.y+rad*Math.cos(ph),tg.z+rad*Math.sin(ph)*Math.cos(th));cam.lookAt(tg)}
+cv.addEventListener("pointerdown",function(e){cv.setPointerCapture(e.pointerId);ptr.set(e.pointerId,{x:e.clientX,y:e.clientY})});
+cv.addEventListener("pointermove",function(e){var p=ptr.get(e.pointerId);if(!p)return;
+if(ptr.size===2){var a=Array.from(ptr.values()),d0=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);p.x=e.clientX;p.y=e.clientY;var d1=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);if(d1>0){rad*=d0/d1;clampR()}}
+else{th-=(e.clientX-p.x)*.008;ph=Math.min(1.6,Math.max(.1,ph-(e.clientY-p.y)*.008));p.x=e.clientX;p.y=e.clientY}});
+function up(e){ptr.delete(e.pointerId)}cv.addEventListener("pointerup",up);cv.addEventListener("pointercancel",up);
+cv.addEventListener("wheel",function(e){e.preventDefault();rad*=1+e.deltaY*.001;clampR()},{passive:false});
+var W0=1,H0=1;function rs(){W0=cv.clientWidth;H0=cv.clientHeight;R.setSize(W0,H0,false);cam.aspect=W0/H0;cam.updateProjectionMatrix()}
+new ResizeObserver(rs).observe(cv);rs();
+
+/* controller logic (same as the Arduino sketch) */
+var NAMES=["Low Danger Threat","Moderate Danger Threat","Intermediate Danger Threat","GAS LEAK ALERT"],COL=["#2f9e5b","#b8a21a","#d9822b","#c62f2a"];
+var S={t:0,angle:0,dir:1,lServo:0,lGas:0,lTemp:0,lPrint:0,c:0,leak:false,latched:false,fan:false,danger:0,lastD:-1,gasPct:0,gasRaw:100,lastT:0,cyl:0,speed:15,paused:false,pot:600,lvl:.55};
+var lines=[],dirty=true,fr=0,lastAng=-1;
+function log(s){lines.push(s);if(lines.length>160)lines.shift();dirty=true}
+function q(x){return Math.round(x*16)/16}
+function tempAt(y){var w=.8,u=Math.min(1,Math.max(0,(y-(S.lvl*17-w))/(2*w))),s=u*u*(3-2*u);return q(24-5.5*(1-s))}
+function step(d){S.t+=d;
+if(S.leak)S.c+=.02*d/1000;if(S.fan)S.c-=.05*d/1000;S.c=Math.min(1,Math.max(0,S.c));
+if(S.t-S.lServo>=333){S.lServo=S.t;S.angle+=S.dir;if(S.angle>=180){S.angle=180;S.dir=-1}else if(S.angle<=0){S.angle=0;S.dir=1}}
+if(S.t-S.lGas>=200){S.lGas=S.t;S.gasRaw=Math.min(1023,Math.round(100+S.c*900));S.gasPct=S.gasRaw/Math.max(S.pot,10)*100;
+if(S.gasPct>=100){S.danger=3;S.latched=true}else if(S.gasPct>=50)S.danger=2;else if(S.gasPct<=20)S.danger=0;else S.danger=1}
+if(S.t-S.lTemp>=1000){S.lTemp=S.t;var ct=tempAt(sensorY(S.angle));
+if(ct!==S.lastT){S.cyl=Math.round(S.angle/180*100);log("[TEMP CHANGE] "+S.lastT.toFixed(2)+" C -> "+ct.toFixed(2)+" C | Servo: "+S.angle+" deg | Cylinder: "+S.cyl+"% | Threat: "+NAMES[S.danger]);S.lastT=ct}}
+S.fan=S.latched;
+if(S.danger!==S.lastD){S.lastD=S.danger;log("[THREAT] "+NAMES[S.danger]+" (gas "+S.gasPct.toFixed(1)+"%)");if(S.danger===3)log("[FAN] ON - press button to reset.")}
+if(S.t-S.lPrint>=1000){S.lPrint=S.t;log("Gas: "+S.gasPct.toFixed(1)+"% | "+NAMES[S.danger]+" | Servo: "+S.angle+" deg | Cylinder: "+S.cyl+"% | Fan: "+(S.fan?"ON":"OFF"))}}
+
+function draw(dt){
+if(S.angle!==lastAng){lastAng=S.angle;var y=sensorY(S.angle),tr=y-Y0-(1.5-Y0);car.position.y=y;
+var trv=S.angle/180*15.5;t1.offset.y=-trv*17/L;t2.offset.y=trv*17/L;
+pT.rotation.z=-trv/.8;pB.rotation.z=-trv/.8;dg.rotation.z=S.angle*Math.PI/180;setCable(y)}
+bl.rotation.z=fr;rled.material.emissiveIntensity=S.fan?1.5:0;
+edgeM.color.setHex(S.latched?0xff3b30:0x7fd0ee);
+plume.visible=S.leak;if(S.leak){plume.scale.set(1+Math.random()*.15,1+Math.random()*.2,1+Math.random()*.15)}
+var k=Math.floor(S.c*N);pgeo.setDrawRange(0,k);pm.opacity=.25+S.c*.5;
+if(k>0){for(var i=0;i<k;i++){var j=i*3;pp[j]+=(Math.random()-.5)*.08+(S.fan?dt*.02:0);pp[j+1]=Math.min(33,Math.max(1,pp[j+1]+(Math.random()-.5)*.08));pp[j+2]=Math.min(13,Math.max(-13,pp[j+2]+(Math.random()-.5)*.08));if(pp[j]>21)pp[j]=-21+Math.random()*10;if(pp[j]<-21)pp[j]=-21}pgeo.attributes.position.needsUpdate=true}
+var b=$("badge");b.textContent=NAMES[S.danger];b.style.background=COL[S.danger];
+$("rA").textContent=S.angle+"\u00b0";$("rT").textContent=S.lastT.toFixed(2)+" \u00b0C";$("rC").textContent=S.cyl+"%";$("rG").textContent=S.gasRaw;$("rP").textContent=S.gasPct.toFixed(0)+"%";$("rF").textContent=S.fan?"ON":"OFF";
+if(dirty){var m=$("mon");m.textContent=lines.join("\n");m.scrollTop=m.scrollHeight;dirty=false}}
+function labels(){if(lbl.style.display==="none")return;LB.forEach(function(l){var v=l[1]().project(cam),e=l[0];
+if(v.z<1&&Math.abs(v.x)<1&&Math.abs(v.y)<1){e.style.display="block";e.style.transform="translate("+((v.x*.5+.5)*W0)+"px,"+((-v.y*.5+.5)*H0)+"px) translate(-50%,-130%)"}else e.style.display="none"})}
+var prev=performance.now();
+function frame(n){var dt=Math.min(n-prev,100);prev=n;
+if(!S.paused){var sim=dt*S.speed;while(sim>0){var d=Math.min(50,sim);step(d);sim-=d}if(S.fan)fr=(fr+dt*.04)%(Math.PI*2)}
+draw(dt);camU();R.render(sc,cam);labels();requestAnimationFrame(frame)}
+
+/* UI */
+function setLvl(v){S.lvl=v/100;var h=Math.max(.05,S.lvl*17-.9);liq.scale.y=h;liq.position.y=.9+h/2;$("lvlO").textContent=v+"%"}
+$("pot").addEventListener("input",function(e){S.pot=+e.target.value;$("potO").textContent=S.pot});
+$("lvl").addEventListener("input",function(e){setLvl(+e.target.value)});
+$("spd").addEventListener("change",function(e){S.speed=+e.target.value});
+$("leak").addEventListener("click",function(e){S.leak=!S.leak;e.target.classList.toggle("on",S.leak);e.target.setAttribute("aria-pressed",S.leak);e.target.textContent=S.leak?"Close leak valve":"Open leak valve"});
+$("rst").addEventListener("click",function(){if(S.latched){S.latched=false;S.fan=false;S.danger=0;log("[RESET] Button pressed - fan OFF, system reset.")}});
+$("pause").addEventListener("click",function(e){S.paused=!S.paused;e.target.textContent=S.paused?"Resume":"Pause"});
+$("rv").addEventListener("click",function(){th=.7;ph=1.05;rad=82});
+$("cL").addEventListener("change",function(e){lbl.style.display=e.target.checked?"block":"none"});
+$("cW").addEventListener("change",function(e){wg.visible=e.target.checked});
+function xr(on){bodyMat.transparent=on;bodyMat.opacity=on?.4:1;bodyMat.depthWrite=!on;bodyMat.needsUpdate=true;liq.visible=on}$("cX").addEventListener("change",function(e){xr(e.target.checked)});xr(true);
+S.lastT=tempAt(sensorY(0));setLvl(55);
+log("=== LPG Gas Detection System ===");log("System ready.");
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
